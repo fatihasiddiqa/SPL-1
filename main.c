@@ -1,17 +1,26 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #include "input.h"
 #include "personal.h"
 #include "analyzer.h"
+#include "report.h"
 #include "generator.h"
 
-// Password analysis
-void password_analysis()
-{
-    struct PersonalInfo info;
+#define PASSWORD_SIZE 100
+#define COMMON_FILE "common_passwords.txt"
 
-    char password[100];
-    
+/* Password analysis option */
+
+void password_analysis(void)
+{
+    PersonalInfo info = {0};
+
+    AnalysisResult result;
+
+    char password[PASSWORD_SIZE] = {0};
 
     printf("\n====================================\n");
     printf("          PASSWORD ANALYSIS\n");
@@ -19,171 +28,101 @@ void password_analysis()
 
     collect_personal_info(&info);
 
-    read_line("\nEnter password: ", password, 100);
-    read_masked_password("\nEnter password: ", password, 100);
-
-    if (is_empty(password))
+    if (!read_masked_password(
+            "\nEnter password: ",
+            password,
+            PASSWORD_SIZE))
     {
-        printf("\nPassword cannot be empty.\n");
+        printf("\nPassword was empty or could not be read.\n");
+
         clear_personal_info(&info);
+
         return;
     }
 
-    
+    result = analyze_password(
+        password,
+        &info,
+        COMMON_FILE
+    );
 
-    analyze_password(password, &info);
+    print_report(&result);
 
-    // Clear temporary sensitive information
-    clear_text(password, 100);
-    
+    /* Clear temporary password data. */
+
+    memset(password, 0, sizeof(password));
 
     clear_personal_info(&info);
 }
 
-// Password generation
-void password_generation()
+/* Password generation option */
+
+void password_generation(void)
 {
-    char password[100];
-    char text[30];
+    char password[PASSWORD_SIZE] = {0};
 
     int length;
-    int upper;
-    int lower;
-    int digits;
-    int special;
-    int seed;
 
     printf("\n====================================\n");
-    printf("         PASSWORD GENERATOR\n");
+    printf("          PASSWORD GENERATOR\n");
     printf("====================================\n");
 
-    read_line("Desired password length (4-64): ",
-              text, 30);
+    length = read_integer(
+        "Enter password length (8-99): ",
+        8,
+        99
+    );
 
-    if (!parse_integer(text, &length) ||
-        length < 4 || length > 64)
-    {
-        printf("\nInvalid length.\n");
-        return;
-    }
+    generate_password(password, length);
 
-    printf("\nChoose character categories.\n");
-    printf("Enter 1 for YES and 0 for NO.\n");
+    printf("\nGenerated password: %s\n", password);
 
-    read_line("Include uppercase letters? ", text, 30);
+    printf("\nNote: This generator uses rand().\n");
+    printf("It is for educational demonstration only.\n");
 
-    if (!parse_integer(text, &upper) ||
-        (upper != 0 && upper != 1))
-    {
-        printf("Invalid selection.\n");
-        return;
-    }
-
-    read_line("Include lowercase letters? ", text, 30);
-
-    if (!parse_integer(text, &lower) ||
-        (lower != 0 && lower != 1))
-    {
-        printf("Invalid selection.\n");
-        return;
-    }
-
-    read_line("Include digits? ", text, 30);
-
-    if (!parse_integer(text, &digits) ||
-        (digits != 0 && digits != 1))
-    {
-        printf("Invalid selection.\n");
-        return;
-    }
-
-    read_line("Include special characters? ", text, 30);
-
-    if (!parse_integer(text, &special) ||
-        (special != 0 && special != 1))
-    {
-        printf("Invalid selection.\n");
-        return;
-    }
-
-    read_line("\nEnter a positive numeric seed: ",
-              text, 30);
-
-    if (!parse_integer(text, &seed) || seed <= 0)
-    {
-        printf("\nInvalid seed.\n");
-        return;
-    }
-
-    if (generate_password(password,
-                          length,
-                          upper,
-                          lower,
-                          digits,
-                          special,
-                          (unsigned long)seed))
-    {
-        printf("\n====================================\n");
-        printf("       GENERATED PASSWORD\n");
-        printf("====================================\n");
-
-        printf("\n%s\n", password);
-
-        printf("\nLength: %d\n", length);
-
-        printf("Uppercase: %s\n", upper ? "Yes" : "No");
-        printf("Lowercase: %s\n", lower ? "Yes" : "No");
-        printf("Digits: %s\n", digits ? "Yes" : "No");
-        printf("Special characters: %s\n",
-               special ? "Yes" : "No");
-
-        printf("\nEducational LCG-based generator.\n");
-        printf("Not suitable for production security.\n");
-    }
-    else
-    {
-        printf("\nPassword generation failed.\n");
-    }
-
-    clear_text(password, 100);
+    memset(password, 0, sizeof(password));
 }
 
-// Main menu
-int main()
+/* Main menu */
+
+int main(void)
 {
-    char choice[20];
+    int choice;
+    srand((unsigned int)time(NULL));
+
+    /* Initialize the random number generator */
 
     while (1)
     {
-        printf("\n\n");
-        printf("========================================\n");
-        printf("       PASSWORD SECURITY ANALYZER       \n");
-        printf("========================================\n");
+        printf("\n====================================\n");
+        printf("       PASSWORD SECURITY ANALYZER\n");
+        printf("====================================\n");
 
         printf("1. Analyze Password\n");
         printf("2. Generate Password\n");
         printf("3. Exit\n");
 
-        printf("========================================\n");
+        printf("====================================\n");
 
-        read_line("Enter your choice: ", choice, 20);
+        choice = read_integer(
+            "Enter your choice: ",
+            1,
+            3
+        );
 
-        if (compare_strings(choice, "1"))
+        switch (choice)
         {
-            password_analysis();
-        }
-        else if (compare_strings(choice, "2"))
-        {
-            password_generation();
-        }
-        else if (compare_strings(choice, "3"))
-        {
-            printf("\nThank you for using the program!\n");
-            break;
-        }
-        else
-        {
-            printf("\nInvalid option. Try again.\n");
+            case 1:
+                password_analysis();
+                break;
+
+            case 2:
+                password_generation();
+                break;
+
+            case 3:
+                printf("\nThank you for using Password Security Analyzer.\n");
+                return 0;
         }
     }
 
