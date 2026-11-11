@@ -1,169 +1,94 @@
-
 #include <stdio.h>
+
 #include "report.h"
 
-void print_report(struct AnalysisResult result)
+void print_report(const AnalysisResult *result)
 {
-    printf("\n\n");
-    printf("============================================\n");
-    printf("          PASSWORD SECURITY REPORT          \n");
-    printf("============================================\n");
+    printf("\n==============================================\n");
+    printf("             PASSWORD ANALYSIS REPORT\n");
+    printf("==============================================\n");
 
-    printf("\n1. PASSWORD INFORMATION\n");
+    printf("Password length          : %d\n", result->length);
 
-    printf("Length: %d characters\n", result.length);
+    printf("\nCHARACTER COMPOSITION\n");
 
-    printf("\n2. CHARACTER COMPOSITION\n");
+    printf("Uppercase letters        : %d\n",
+           result->uppercase_count);
 
-    printf("Uppercase: %d\n", result.uppercase_count);
-    printf("Lowercase: %d\n", result.lowercase_count);
-    printf("Digits: %d\n", result.digit_count);
-    printf("Special characters: %d\n", result.special_count);
+    printf("Lowercase letters        : %d\n",
+           result->lowercase_count);
 
-    printf("\n3. CHARACTER CATEGORY CHECK\n");
+    printf("Digits                   : %d\n",
+           result->digit_count);
 
-    printf("Uppercase present: %s\n",
-           result.uppercase ? "Yes" : "No");
+    printf("Special characters       : %d\n",
+           result->special_count);
 
-    printf("Lowercase present: %s\n",
-           result.lowercase ? "Yes" : "No");
+    printf("\nPATTERN ANALYSIS\n");
 
-    printf("Digits present: %s\n",
-           result.digit ? "Yes" : "No");
+    printf("Repeated characters      : %s\n",
+           result->repeated_pattern ? "Detected" : "Not detected");
 
-    printf("Special characters present: %s\n",
-           result.special ? "Yes" : "No");
+    printf("Sequential characters    : %s\n",
+           result->sequence_pattern ? "Detected" : "Not detected");
 
-    printf("\n4. PATTERN DETECTION\n");
+    printf("\nPERSONAL INFORMATION CHECK\n");
 
-    printf("Consecutive repetition: %s\n",
-           result.repetition ? "Detected" : "Not detected");
+    printf("Personal information     : %s\n",
+           result->personal_match ? "Possible match" : "No match");
 
-    printf("Repeated pairs: %s\n",
-           result.pair_pattern ? "Detected" : "Not detected");
+    if (result->personal_match)
+        printf("Matched information     : %s\n",
+               result->matched_personal);
 
-    printf("Alternating pattern: %s\n",
-           result.alternating ? "Detected" : "Not detected");
+    printf("\nCOMMON PASSWORD CHECK\n");
 
-    printf("Sequential pattern: %s\n",
-           result.sequence ? "Detected" : "Not detected");
+    printf("Common password similarity: %s\n",
+           result->common_match ? "Possible match" : "No match");
 
-    printf("\n5. PERSONAL INFORMATION CHECK\n");
+    if (result->common_match)
+        printf("Similar dictionary entry : %s\n",
+               result->matched_common);
 
-    if (result.personal_match)
-    {
-        printf("Personal similarity detected: %s\n",
-               result.matched_personal);
-    }
-    else
-    {
-        printf("No significant personal similarity detected.\n");
-    }
+    printf("\n==============================================\n");
 
-    printf("\n6. DICTIONARY CHECK\n");
+    printf("SECURITY SCORE: %d / 100\n", result->score);
 
-    if (result.dictionary_match == 1)
-    {
-        printf("Dictionary word found: %s\n",
-               result.matched_dictionary);
-    }
-    else if (result.dictionary_match == 2)
-    {
-        printf("Similar common password found: %s\n",
-               result.matched_dictionary);
+    printf("SECURITY RATING: %s\n", result->rating);
 
-        printf("Edit distance: %d\n",
-               result.dictionary_distance);
-    }
-    else if (result.dictionary_match == 0)
-    {
-        printf("No dictionary match detected.\n");
-    }
-    else
-    {
-        printf("Dictionary file could not be opened.\n");
-    }
+    printf("==============================================\n");
 
-    printf("\n7. KEYBOARD PATTERN CHECK\n");
+    printf("\nRECOMMENDATIONS\n");
 
-    if (result.keyboard_match == 1)
-    {
-        printf("Keyboard pattern detected: %s\n",
-               result.matched_keyboard);
-    }
-    else if (result.keyboard_match == 0)
-    {
-        printf("No keyboard pattern detected.\n");
-    }
-    else
-    {
-        printf("Keyboard database unavailable.\n");
-    }
+    if (result->length < 12)
+        printf("- Use at least 12 characters.\n");
 
-    printf("\n8. ENTROPY ESTIMATION\n");
-
-    printf("Character pool size: %d\n", result.entropy_pool);
-
-    printf("Estimated entropy: %.2f bits\n",
-           result.entropy);
-
-    printf("\n9. FINAL SECURITY RESULT\n");
-
-    printf("Security score: %d / 100\n",
-           result.score);
-
-    printf("Rating: %s\n", result.rating);
-
-    printf("\n10. RECOMMENDATIONS\n");
-
-    if (result.length < 12)
-        printf("- Increase password length to at least 12 characters.\n");
-
-    if (!result.uppercase)
+    if (!result->has_uppercase)
         printf("- Add uppercase letters.\n");
 
-    if (!result.lowercase)
+    if (!result->has_lowercase)
         printf("- Add lowercase letters.\n");
 
-    if (!result.digit)
-        printf("- Include digits.\n");
+    if (!result->has_digit)
+        printf("- Add digits.\n");
 
-    if (!result.special)
-        printf("- Include special characters.\n");
+    if (!result->has_special)
+        printf("- Add special characters.\n");
 
-    if (result.repetition)
-        printf("- Avoid repeating the same character several times.\n");
+    if (result->repeated_pattern)
+        printf("- Avoid three or more repeated characters.\n");
 
-    if (result.pair_pattern)
-        printf("- Avoid repeated pairs such as aabb.\n");
+    if (result->sequence_pattern)
+        printf("- Avoid simple sequences such as abc or 123.\n");
 
-    if (result.alternating)
-        printf("- Avoid alternating patterns such as abab.\n");
+    if (result->personal_match)
+        printf("- Avoid personal information in passwords.\n");
 
-    if (result.sequence)
-        printf("- Avoid sequential characters such as 123 or abc.\n");
+    if (result->common_match)
+        printf("- Avoid passwords similar to common passwords.\n");
 
-    if (result.personal_match)
-        printf("- Remove personal information from your password.\n");
+    if (result->score >= 75)
+        printf("- Your password passed the basic checks.\n");
 
-    if (result.dictionary_match == 1 ||
-        result.dictionary_match == 2)
-    {
-        printf("- Avoid common words and simple variations of them.\n");
-    }
-
-    if (result.keyboard_match == 1)
-        printf("- Avoid predictable keyboard sequences.\n");
-
-    if (result.length >= 12 &&
-        !result.repetition &&
-        !result.sequence &&
-        !result.personal_match &&
-        result.dictionary_match == 0 &&
-        result.keyboard_match == 0)
-    {
-        printf("- No major weakness was found by the implemented checks.\n");
-    }
-
-    printf("\n============================================\n");
+    printf("\nThis is an educational strength estimate.\n");
 }
