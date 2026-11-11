@@ -1,268 +1,153 @@
-
 #include <stdio.h>
-#include <conio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 #include "input.h"
 
+#ifdef _WIN32
+#include <conio.h>
+#else
+#include <termios.h>
+#include <unistd.h>
+#endif
 
-// Calculate string length
-int string_length(char *text)
+void read_line(const char *message, char *buffer, size_t size)
 {
-    int i = 0;
-
-    while (text[i] != '\0')
-    {
-        i++;
-    }
-
-    return i;
-}
-
-
-// Convert uppercase character to lowercase
-char to_lower(char ch)
-{
-    if (ch >= 'A' && ch <= 'Z')
-    {
-        return ch + 32;
-    }
-
-    return ch;
-}
-
-
-// Compare two strings
-int compare_strings(char *first, char *second)
-{
-    int i = 0;
-
-    while (first[i] != '\0' && second[i] != '\0')
-    {
-        if (first[i] != second[i])
-        {
-            return 0;
-        }
-
-        i++;
-    }
-
-    return first[i] == '\0' && second[i] == '\0';
-}
-
-
-// Compare strings without considering uppercase/lowercase
-int compare_ignore_case(char *first, char *second)
-{
-    int i = 0;
-
-    while (first[i] != '\0' && second[i] != '\0')
-    {
-        if (to_lower(first[i]) != to_lower(second[i]))
-        {
-            return 0;
-        }
-
-        i++;
-    }
-
-    return first[i] == '\0' && second[i] == '\0';
-}
-
-
-// Check whether one string exists inside another
-int contains_text(char *text, char *search)
-{
-    int i, j;
-
-    int n = string_length(text);
-    int m = string_length(search);
-
-    if (m == 0 || m > n)
-    {
-        return 0;
-    }
-
-    for (i = 0; i <= n - m; i++)
-    {
-        j = 0;
-
-        while (j < m &&
-               to_lower(text[i + j]) == to_lower(search[j]))
-        {
-            j++;
-        }
-
-        if (j == m)
-        {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-
-// Copy one string into another
-void copy_text(char *destination, char *source, int size)
-{
-    int i = 0;
-
-    while (i < size - 1 && source[i] != '\0')
-    {
-        destination[i] = source[i];
-        i++;
-    }
-
-    destination[i] = '\0';
-}
-
-
-// Clear a string
-void clear_text(char *text, int size)
-{
-    int i;
-
-    for (i = 0; i < size; i++)
-    {
-        text[i] = '\0';
-    }
-}
-
-
-// Check whether a string is empty
-int is_empty(char *text)
-{
-    return text[0] == '\0';
-}
-
-
-// Read normal visible input
-int read_line(char *message, char *text, int size)
-{
+    size_t length;
     int ch;
-    int i = 0;
 
-    if (size <= 0)
-    {
-        return 0;
-    }
+    if (size == 0)
+        return;
 
     printf("%s", message);
 
-    while ((ch = getchar()) != '\n' && ch != EOF)
+    if (fgets(buffer, (int)size, stdin) == NULL)
     {
-        if (i < size - 1)
+        buffer[0] = '\0';
+        return;
+    }
+
+    length = strlen(buffer);
+
+    if (length > 0 && buffer[length - 1] == '\n')
+    {
+        buffer[length - 1] = '\0';
+    }
+    else
+    {
+        while ((ch = getchar()) != '\n' && ch != EOF)
         {
-            text[i] = (char)ch;
-            i++;
         }
     }
-
-    text[i] = '\0';
-
-    if (ch == EOF && i == 0)
-    {
-        return 0;
-    }
-
-    return 1;
 }
 
-
-// Read a positive integer
-int parse_integer(char *text, int *number)
+int read_integer(const char *message, int minimum, int maximum)
 {
-    int i = 0;
-    int value = 0;
-
-    if (text[0] == '\0')
-    {
-        return 0;
-    }
-
-    while (text[i] != '\0')
-    {
-        if (text[i] < '0' || text[i] > '9')
-        {
-            return 0;
-        }
-
-        if (value > 214748364 ||
-            (value == 214748364 && text[i] > '7'))
-        {
-            return 0;
-        }
-
-        value = value * 10 + text[i] - '0';
-
-        i++;
-    }
-
-    *number = value;
-
-    return 1;
-}
-
-
-// Read password with masking
-int read_masked_password(char *message, char *password, int size)
-{
-    int ch;
-    int i = 0;
-
-    if (size <= 0)
-    {
-        return 0;
-    }
-
-    printf("%s", message);
+    char buffer[100];
+    char *end;
+    long value;
 
     while (1)
     {
-        ch = _getch();
+        read_line(message, buffer, sizeof(buffer));
 
-        // Enter key
-        if (ch == 13)
+        value = strtol(buffer, &end, 10);
+
+        while (isspace((unsigned char)*end))
+            end++;
+
+        if (buffer[0] != '\0' && *end == '\0' &&
+            value >= minimum && value <= maximum)
         {
-            break;
+            return (int)value;
         }
 
-        // Backspace key
-        else if (ch == 8)
+        printf("Invalid input. Enter a number from %d to %d.\n",
+               minimum, maximum);
+    }
+}
+
+int read_masked_password(const char *message, char *password, int size)
+{
+    int index = 0;
+    int ch;
+
+    if (size <= 1)
+        return 0;
+
+    printf("%s", message);
+    fflush(stdout);
+
+#ifdef _WIN32
+
+    while ((ch = _getch()) != '\r')
+    {
+        if (ch == 3)
+            return 0;
+
+        if (ch == '\b')
         {
-            if (i > 0)
+            if (index > 0)
             {
-                i--;
-
-                password[i] = '\0';
-
+                index--;
                 printf("\b \b");
+                fflush(stdout);
             }
         }
-
-        // Ignore special keys
-        else if (ch == 0 || ch == 224)
+        else if (ch >= 32 && ch <= 126 && index < size - 1)
         {
-            _getch();
-        }
-
-        // Normal printable characters
-        else if (ch >= 32 && ch <= 126)
-        {
-            if (i < size - 1)
-            {
-                password[i] = (char)ch;
-
-                i++;
-
-                printf("*");
-            }
+            password[index++] = (char)ch;
+            putchar('*');
+            fflush(stdout);
         }
     }
 
-    password[i] = '\0';
+#else
+
+    {
+        struct termios old_settings;
+        struct termios new_settings;
+
+        if (tcgetattr(STDIN_FILENO, &old_settings) != 0)
+        {
+            printf("\nPassword input could not be masked on this terminal.\n");
+            return 0;
+        }
+
+        new_settings = old_settings;
+        new_settings.c_lflag &= (tcflag_t)~ECHO;
+        new_settings.c_lflag |= (tcflag_t)ICANON;
+
+        tcsetattr(STDIN_FILENO, TCSANOW, &new_settings);
+
+        while ((ch = getchar()) != '\n' && ch != EOF)
+        {
+            if (ch == 127 || ch == 8)
+            {
+                if (index > 0)
+                {
+                    index--;
+                    printf("\b \b");
+                    fflush(stdout);
+                }
+            }
+            else if (ch >= 32 && ch <= 126 && index < size - 1)
+            {
+                password[index++] = (char)ch;
+                putchar('*');
+                fflush(stdout);
+            }
+        }
+
+        tcsetattr(STDIN_FILENO, TCSANOW, &old_settings);
+    }
+
+#endif
+
+    password[index] = '\0';
 
     printf("\n");
 
-    return 1;
+    return index;
 }
