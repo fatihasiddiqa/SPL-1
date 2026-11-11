@@ -1,92 +1,245 @@
 
 #include <stdio.h>
-#include <math.h>
+#include <string.h>
+#include <ctype.h>
 
 #include "analyzer.h"
-#include "input.h"
-#include "pattern.h"
-#include "dictionary.h"
-#include "report.h"
-#include "personal.h"
 
 
-void count_characters(char *password,
-                      struct AnalysisResult *result)
+
+static int lcs_length(const char *first, const char *second)
 {
-    int i = 0;
-    char ch;
+    int table[101][101] = {0};
+    int i, j;
 
-    result->uppercase_count = 0;
-    result->lowercase_count = 0;
-    result->digit_count = 0;
-    result->special_count = 0;
+    int n = strlen(first);
+    int m = strlen(second);
 
-    while (password[i] != '\0')
+    if (n > 100)
+        n = 100;
+
+    if (m > 100)
+        m = 100;
+
+    for (i = 1; i <= n; i++)
     {
-        ch = password[i];
-
-        if (ch >= 'A' && ch <= 'Z')
+        for (j = 1; j <= m; j++)
         {
+            if (tolower((unsigned char)first[i - 1]) ==
+                tolower((unsigned char)second[j - 1]))
+            {
+                table[i][j] = table[i - 1][j - 1] + 1;
+            }
+            else if (table[i - 1][j] > table[i][j - 1])
+            {
+                table[i][j] = table[i - 1][j];
+            }
+            else
+            {
+                table[i][j] = table[i][j - 1];
+            }
+        }
+    }
+
+    return table[n][m];
+}
+
+/* Compare two strings using LCS */
+
+static int similar_enough(
+    const char *password,
+    const char *candidate,
+    int minimum_common
+)
+{
+    int common;
+
+    int shorter_length = strlen(password);
+    int candidate_length = strlen(candidate);
+
+    if (candidate_length < shorter_length)
+        shorter_length = candidate_length;
+
+    if (shorter_length < minimum_common)
+        return 0;
+
+    common = lcs_length(password, candidate);
+
+    return common >= minimum_common &&
+           common * 100 >= shorter_length * 60;
+}
+
+/* Count character categories */
+
+static void count_characters(
+    const char *password,
+    AnalysisResult *result
+)
+{
+    int i;
+    unsigned char ch;
+
+    for (i = 0; password[i] != '\0'; i++)
+    {
+        ch = (unsigned char)password[i];
+
+        if (isupper(ch))
             result->uppercase_count++;
-        }
-        else if (ch >= 'a' && ch <= 'z')
-        {
+
+        else if (islower(ch))
             result->lowercase_count++;
-        }
-        else if (ch >= '0' && ch <= '9')
-        {
+
+        else if (isdigit(ch))
             result->digit_count++;
-        }
+
         else
-        {
             result->special_count++;
-        }
-
-        i++;
     }
 
-    result->uppercase = result->uppercase_count > 0;
-    result->lowercase = result->lowercase_count > 0;
-    result->digit = result->digit_count > 0;
-    result->special = result->special_count > 0;
+    result->has_uppercase = result->uppercase_count > 0;
+    result->has_lowercase = result->lowercase_count > 0;
+    result->has_digit = result->digit_count > 0;
+    result->has_special = result->special_count > 0;
 }
 
 
-void calculate_entropy(struct AnalysisResult *result)
+
+static int detect_repetition(const char *password)
 {
-    int pool = 0;
+    int i;
 
-    if (result->uppercase)
-        pool += 26;
-
-    if (result->lowercase)
-        pool += 26;
-
-    if (result->digit)
-        pool += 10;
-
-    if (result->special)
-    pool += 8;
-
-    result->entropy_pool = pool;
-
-    if (pool > 1)
+    for (i = 0; password[i + 2] != '\0'; i++)
     {
-        result->entropy =
-            result->length * (log((double)pool) / log(2.0));
+        if (password[i] == password[i + 1] &&
+            password[i + 1] == password[i + 2])
+        {
+            return 1;
+        }
     }
-    else
-    {
-        result->entropy = 0.0;
-    }
+
+    return 0;
 }
 
 
-void calculate_score(struct AnalysisResult *result)
+
+static int detect_sequence(const char *password)
+{
+    int i;
+    int a, b, c;
+
+    for (i = 0; password[i + 2] != '\0'; i++)
+    {
+        a = (unsigned char)password[i];
+        b = (unsigned char)password[i + 1];
+        c = (unsigned char)password[i + 2];
+
+        if ((b == a + 1 && c == b + 1) ||
+            (b == a - 1 && c == b - 1))
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/* Check one personal information field */
+
+static int check_personal_field(
+    const char *password,
+    const char *field,
+    char *matched_field,
+    int capacity
+)
+{
+    if (field[0] == '\0' || strlen(field) < 4)
+        return 0;
+
+    if (similar_enough(password, field, 4))
+    {
+        snprintf(matched_field, (size_t)capacity, "%s", field);
+        return 1;
+    }
+
+    return 0;
+}
+
+/* Compare password with all personal information */
+
+static int check_personal_information(
+    const char *password,
+    const PersonalInfo *info,
+    char *matched_field,
+    int capacity
+)
+{
+    if (check_personal_field(password, info->name,
+                             matched_field, capacity))
+        return 1;
+
+    if (check_personal_field(password, info->birth_date,
+                             matched_field, capacity))
+        return 1;
+
+    if (check_personal_field(password, info->city,
+                             matched_field, capacity))
+        return 1;
+
+    if (check_personal_field(password, info->country,
+                             matched_field, capacity))
+        return 1;
+
+    if (check_personal_field(password, info->hobby,
+                             matched_field, capacity))
+        return 1;
+
+    return 0;
+}
+
+
+
+static int check_common_password_file(
+    const char *password,
+    const char *filename,
+    char *matched_common,
+    int capacity
+)
+{
+    FILE *file;
+    char word[100];
+
+    file = fopen(filename, "r");
+
+    if (file == NULL)
+    {
+        printf("\nWarning: Could not open %s.\n", filename);
+        return 0;
+    }
+
+    while (fgets(word, sizeof(word), file) != NULL)
+    {
+        word[strcspn(word, "\r\n")] = '\0';
+
+        if (word[0] == '\0')
+            continue;
+
+        if (similar_enough(password, word, 5))
+        {
+            snprintf(matched_common, (size_t)capacity, "%s", word);
+
+            fclose(file);
+            return 1;
+        }
+    }
+
+    fclose(file);
+    return 0;
+}
+
+static void calculate_score(AnalysisResult *result)
 {
     int score = 0;
 
-    // Length points
     if (result->length >= 8)
         score += 20;
 
@@ -96,53 +249,30 @@ void calculate_score(struct AnalysisResult *result)
     if (result->length >= 16)
         score += 10;
 
-
-    // Character diversity
-    if (result->uppercase)
+    if (result->has_uppercase)
         score += 10;
 
-    if (result->lowercase)
+    if (result->has_lowercase)
         score += 10;
 
-    if (result->digit)
+    if (result->has_digit)
         score += 10;
 
-    if (result->special)
+    if (result->has_special)
         score += 10;
 
-
-    // Entropy contribution
-    if (result->entropy >= 50)
-        score += 10;
-
-
-    // Weakness penalties
-    if (result->repetition)
+    if (result->repeated_pattern)
         score -= 10;
 
-    if (result->pair_pattern)
+    if (result->sequence_pattern)
         score -= 10;
-
-    if (result->alternating)
-        score -= 10;
-
-    if (result->sequence)
-        score -= 15;
 
     if (result->personal_match)
         score -= 20;
 
-    if (result->dictionary_match == 1)
+    if (result->common_match)
         score -= 30;
 
-    if (result->dictionary_match == 2)
-        score -= 20;
-
-    if (result->keyboard_match == 1)
-        score -= 15;
-
-
-    // Limit score
     if (score < 0)
         score = 0;
 
@@ -151,97 +281,52 @@ void calculate_score(struct AnalysisResult *result)
 
     result->score = score;
 
+    if (score >= 75)
+        strcpy(result->rating, "STRONG");
 
-    // Assign rating
-    if (result->dictionary_match == 1)
-    {
-        copy_text(result->rating, "VERY WEAK", 30);
-    }
-    else if (score >= 75)
-    {
-        copy_text(result->rating, "STRONG", 30);
-    }
     else if (score >= 50)
-    {
-        copy_text(result->rating, "MODERATE", 30);
-    }
+        strcpy(result->rating, "MODERATE");
+
     else
-    {
-        copy_text(result->rating, "WEAK", 30);
-    }
+        strcpy(result->rating, "WEAK");
 }
 
 
-void analyze_password(char *password,
-                      struct PersonalInfo *info)
+
+AnalysisResult analyze_password(
+    const char *password,
+    const PersonalInfo *info,
+    const char *dictionary_file
+)
 {
-    struct AnalysisResult result;
+    AnalysisResult result = {0};
 
-    int distance = -1;
+    result.length = strlen(password);
 
-    result.length = string_length(password);
-
-    clear_text(result.matched_personal, 50);
-    clear_text(result.matched_dictionary, 100);
-    clear_text(result.matched_keyboard, 80);
-    clear_text(result.rating, 30);
-
-
-    // Character composition
     count_characters(password, &result);
 
+    result.repeated_pattern = detect_repetition(password);
 
-    // Pattern detection
-    result.repetition = detect_repetition(password);
+    result.sequence_pattern = detect_sequence(password);
 
-    result.pair_pattern = detect_pair_pattern(password);
-
-    result.alternating = detect_alternating(password);
-
-    result.sequence = detect_sequence(password);
-
-
-    // Personal information similarity
     result.personal_match =
-        check_personal_similarity(
+        check_personal_information(
             password,
             info,
             result.matched_personal,
-            50
+            sizeof(result.matched_personal)
         );
 
-
-    // Dictionary search and edit distance
-    result.dictionary_match =
-        check_dictionary(
+    result.common_match =
+        check_common_password_file(
             password,
-            "common.txt",
-            result.matched_dictionary,
-            100,
-            &distance
+            dictionary_file,
+            result.matched_common,
+            sizeof(result.matched_common)
         );
 
-    result.dictionary_distance = distance;
-
-
-    // Keyboard pattern detection
-    result.keyboard_match =
-        detect_keyboard_pattern(
-            password,
-            result.matched_keyboard,
-            80
-        );
-
-
-    // Entropy estimation
-    calculate_entropy(&result);
-
-
-    // Final scoring
     calculate_score(&result);
 
-
-    // Display report
-    print_report(result);
+    return result;
 }
 
